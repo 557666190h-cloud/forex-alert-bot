@@ -4,6 +4,31 @@ import pandas as pd
 import requests
 import yfinance as yf
 
+# Configure browser session headers to avoid scraping blocks
+session = requests.Session()
+session.headers.update({
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+})
+
+SYMBOL = "GLD"  # or "XAUUSD=X"
+
+def check_market():
+    try:
+        ticker = yf.Ticker(SYMBOL, session=session)
+        df = ticker.history(period="1d", interval="5m")
+        if not df.empty:
+            latest_price = df['Close'].iloc[-1]
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {SYMBOL} Current Price: ${latest_price:.2f}")
+        else:
+            print("No data returned from Yahoo Finance.")
+    except Exception as e:
+        print(f"Error fetching data: {e}")
+
+if __name__ == "__main__":
+    print("Starting Trading Alert Bot on Railway...")
+    while True:
+        check_market()
+        time.sleep(60)  # Scan every 60 seconds
 # ==========================================
 # CONFIGURATION
 # ==========================================
