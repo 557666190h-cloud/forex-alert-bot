@@ -7,8 +7,8 @@ import yfinance as yf
 # ==========================================
 # CONFIGURATION
 # ==========================================
-DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1544942560760299520/v2_0MjTNFwVIUD-GsF_ewV641MFSZRiqVpmUgHqvgnAb5iBlOYNx4F3LqT3YgeZme-Aq"  # Paste your Discord Webhook URL here
-SYMBOL = "GC=F"                                        # Gold Futures on Yahoo Finance (Use "XAUUSD=X" for Spot Gold)
+DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1544942560760299520/v2_0MjTNFwVIUD-GsF_ewV641MFSZRiqVpmUgHqvgnAb5iBlOYNx4F3LqT3YgeZme-Aq"
+SYMBOL = "GC=F"                                        # Gold Futures on Yahoo Finance
 TIMEFRAME = "5m"                                       # 5-minute timeframe
 CHECK_INTERVAL_SEC = 15                                # Check frequency in seconds for live candles
 
@@ -20,12 +20,10 @@ RR_TARGET = 2.0                                        # Target Risk:Reward Rati
 BE_RR = 1.0                                            # Breakeven Trigger (1:1 RR)
 
 
-# Helper function to compute price movement size
 def get_point_size(symbol):
     return 1.0 if ("GC=F" in symbol or "XAU" in symbol) else 0.0001
 
 
-# Check momentum candle criteria
 def is_momentum(open_p, high_p, low_p, close_p):
     c_body = abs(close_p - open_p)
     if c_body == 0:
@@ -35,7 +33,6 @@ def is_momentum(open_p, high_p, low_p, close_p):
     return (top_wick / c_body) <= MAX_WICK_TO_BODY and (bottom_wick / c_body) <= MAX_WICK_TO_BODY
 
 
-# Send embed messages to Discord Webhook
 def send_discord_alert(title, message, color=0x00FF00):
     if DISCORD_WEBHOOK_URL == "YOUR_DISCORD_WEBHOOK_URL_HERE" or not DISCORD_WEBHOOK_URL:
         return
@@ -61,13 +58,11 @@ def send_discord_alert(title, message, color=0x00FF00):
 def run_strategy_backtest(symbol, timeframe):
     print(f"Running historical backtest for {symbol} ({timeframe})...")
     
-    # Download up to 30 days of 5m historical data
     data = yf.download(tickers=symbol, period="30d", interval=timeframe, progress=False)
     if len(data) < 100:
         print("Insufficient historical data to run backtest.")
         return
 
-    # Clean multi-index columns if present
     if isinstance(data.columns, pd.MultiIndex):
         data.columns = data.columns.get_level_values(0)
 
@@ -97,7 +92,6 @@ def run_strategy_backtest(symbol, timeframe):
     doji_low = 0.0
     pattern_sl = 0.0
 
-    # Process historical bars
     for i in range(2, len(data)):
         c1 = data.iloc[i - 2]
         c2 = data.iloc[i - 1]
@@ -105,7 +99,6 @@ def run_strategy_backtest(symbol, timeframe):
 
         high_curr, low_curr = c3['High'], c3['Low']
 
-        # 1. Manage active trades
         if in_trade:
             if trade_dir == -1:  # Short Position
                 if not is_be and low_curr <= be_px:
@@ -149,7 +142,6 @@ def run_strategy_backtest(symbol, timeframe):
                         total_points -= pts
                     in_trade = False
 
-        # 2. Execute pending retest entries
         if pending_sell and not in_trade:
             if high_curr >= doji_low:
                 in_trade = True
@@ -176,18 +168,15 @@ def run_strategy_backtest(symbol, timeframe):
                 is_be = False
                 total_trades += 1
 
-        # Cancel invalid setups
         if pending_sell and high_curr > pattern_sl:
             pending_sell = False
         if pending_buy and low_curr < pattern_sl:
             pending_buy = False
 
-        # 3. Detect new setups
         c2_range = c2['High'] - c2['Low']
         c2_body = abs(c2['Close'] - c2['Open'])
         is_doji2 = c2_range > 0 and (c2_body / c2_range) <= DOJI_THRESHOLD
 
-        # Bearish Setup
         is_bearish1 = (c1['Close'] < c1['Open']) and is_momentum(c1['Open'], c1['High'], c1['Low'], c1['Close'])
         is_bearish2 = (c2['Close'] <= c2['Open']) and is_doji2
         is_bearish3 = (c3['Close'] < c3['Open']) and is_momentum(c3['Open'], c3['High'], c3['Low'], c3['Close']) and (c3['Close'] < max(c2['Close'], c2['Low']))
@@ -200,7 +189,6 @@ def run_strategy_backtest(symbol, timeframe):
             pattern_sl = c1['High'] + sl_buffer
             total_setups += 1
 
-        # Bullish Setup
         is_bullish1 = (c1['Close'] > c1['Open']) and is_momentum(c1['Open'], c1['High'], c1['Low'], c1['Close'])
         is_bullish2 = (c2['Close'] >= c2['Open']) and is_doji2
         is_bullish3 = (c3['Close'] > c3['Open']) and is_momentum(c3['Open'], c3['High'], c3['Low'], c3['Close']) and (c3['Close'] > min(c2['Close'], c2['High']))
@@ -213,8 +201,6 @@ def run_strategy_backtest(symbol, timeframe):
             pattern_sl = c1['Low'] - sl_buffer
             total_setups += 1
 
-    # Calculate Win Rate (Wins + Breakevens)
     winrate = (((wins + breakevens) / total_trades) * 100) if total_trades > 0 else 0.0
 
-    # Display Dashboard Table
     summary = f"""
